@@ -1,0 +1,11 @@
+langchain-groq
+llama_index
+llama-index-embeddings-huggingface
+langgraph
+langchain_community
+langchain_mistralai
+docx2txt
+uvicorn
+fastapi
+python-multipart
+tiktoken
