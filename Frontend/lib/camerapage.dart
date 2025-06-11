@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:projeect/scanresult2.dart';
 import 'package:projeect/scanresultpage.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart'; // Add this import
+import 'package:http_parser/http_parser.dart';
 import 'package:projeect/loginscreen2.dart' as Lgscreen;
 
 // Replace with actual user ID logic
@@ -13,11 +13,11 @@ var user_id = Lgscreen.id_user; // Assuming id_user is set in loginscreen2.dart
 
 Map<String, dynamic>? imagedata;
 
-Future<void> _uploadImage(File imageFile) async {
+// Update _uploadImage to return the decoded result and work for any File
+Future<Map<String, dynamic>?> _uploadImage(File imageFile) async {
   const String url = "https://mmm12212.pythonanywhere.com/send_image";
   try {
     final request = http.MultipartRequest('POST', Uri.parse(url));
-    // Use File.openRead to ensure the file is streamed correctly
     final fileStream = http.ByteStream(imageFile.openRead());
     final fileLength = await imageFile.length();
 
@@ -30,7 +30,6 @@ Future<void> _uploadImage(File imageFile) async {
     );
     request.files.add(multipartFile);
 
-    // Send user_id as a form field, always as a string
     request.fields['user_id'] = user_id != null ? user_id.toString() : '';
 
     print("Sending image and user_id to backend...");
@@ -42,12 +41,15 @@ Future<void> _uploadImage(File imageFile) async {
       imagedata = json.decode(responseBody);
       print("✅ Data received:");
       print(imagedata);
+      return imagedata; // Return the decoded result
     } else {
       print("❌ Error: ${streamedResponse.statusCode}");
       print(responseBody);
+      return null;
     }
   } catch (e) {
     print("🚨 Exception: $e");
+    return null;
   }
 }
 

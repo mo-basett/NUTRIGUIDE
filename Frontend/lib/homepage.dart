@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +13,16 @@ import 'package:projeect/scanresult2.dart';
 import 'package:projeect/settingpage.dart';
 import 'package:projeect/scanresultpage.dart';
 import 'package:projeect/chat.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http_parser/http_parser.dart';
+import 'package:projeect/loginscreen2.dart' as Lgscreen;
+import 'package:mime/mime.dart';
+
+var user_id = Lgscreen.id_user;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,7 +35,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final ImagePicker _picker = ImagePicker();
   File? _capturedImage;
   int _currentIndex = 2;
-
+  bool _isCapturing = false;
   // Animation controllers
   late AnimationController _animationController;
   late AnimationController _buttonAnimationController;
@@ -112,13 +124,70 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _pickImageFromGallery() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() {
-        _capturedImage = File(image.path);
-      });
-      _navigateToScanResultPage(_capturedImage!);
+  Future<Map<String, dynamic>?> _uploadImage(File imageFile) async {
+    const String url = "https://mmm12212.pythonanywhere.com/send_image";
+    try {
+      final request = http.MultipartRequest('POST', Uri.parse(url));
+      final fileStream = http.ByteStream(imageFile.openRead());
+      final fileLength = await imageFile.length();
+
+      final mimeType = lookupMimeType(imageFile.path) ?? 'image/jpeg';
+      final mimeSplit = mimeType.split('/');
+      final multipartFile = http.MultipartFile(
+        'file',
+        fileStream,
+        fileLength,
+        filename: imageFile.path.split('/').last,
+        contentType: MediaType(mimeSplit[0], mimeSplit[1]),
+      );
+
+      request.files.add(multipartFile);
+      request.fields['user_id'] = user_id != null ? user_id.toString() : '';
+
+      print("📤 Uploading image...");
+      print("📄 File: ${imageFile.path}");
+      print("🧾 MIME: $mimeType");
+
+      final streamedResponse = await request.send();
+      final responseBody = await streamedResponse.stream.bytesToString();
+
+      if (streamedResponse.statusCode == 200) {
+        imagedata = json.decode(responseBody);
+        print("✅ Response: $imagedata");
+        return imagedata;
+      } else {
+        print("❌ Error: ${streamedResponse.statusCode}");
+        print(responseBody);
+        return null;
+      }
+    } catch (e) {
+      print("🚨 Upload Exception: $e");
+      return null;
+    }
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final XFile? pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90, // Compress image to avoid large files
+    );
+
+    if (pickedFile != null) {
+      final File imageFile = File(pickedFile.path);
+
+      await _uploadImage(imageFile);
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => Scanresult2(imageFile: imageFile),
+          ),
+        );
+      }
+    } else {
+      print("❗ No image selected.");
     }
   }
 
@@ -428,13 +497,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   height: 65,
                                   margin: const EdgeInsets.only(bottom: 15),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFB9935),
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.orange,
+                                        Color(0xFFFF8C00),
+                                      ],
+                                    ),
                                     borderRadius: BorderRadius.circular(25),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: const Color(
-                                          0xFFFB9935,
-                                        ).withOpacity(0.3),
+                                        color: Colors.orange.withOpacity(0.3),
                                         blurRadius: 15,
                                         offset: const Offset(0, 8),
                                       ),
@@ -444,13 +518,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     color: Colors.transparent,
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(25),
-                                      onTap: _pickImageFromGallery,
+                                      onTap: _pickAndUploadImage,
+
                                       child: Padding(
                                         padding: const EdgeInsets.all(5),
                                         child: Row(
                                           children: [
                                             Container(
-                                              padding: const EdgeInsets.all(15),
+                                              padding: const EdgeInsets.all(10),
                                               decoration: BoxDecoration(
                                                 color: Colors.white.withOpacity(
                                                   0.2,
@@ -458,12 +533,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                 borderRadius:
                                                     BorderRadius.circular(20),
                                               ),
-                                              child: const Icon(
-                                                Icons.upload_file_rounded,
-                                                size: 24,
-                                                color: Colors.white,
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                  Icons.upload_file_rounded,
+                                                  color: Colors.white,
+                                                  size: 24,
+                                                ),
+                                                onPressed:
+                                                    _isCapturing
+                                                        ? null
+                                                        : _pickAndUploadImage,
                                               ),
                                             ),
+
                                             const SizedBox(width: 40),
                                             const Expanded(
                                               child: Column(
